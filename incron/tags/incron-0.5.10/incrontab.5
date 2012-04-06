@@ -1,0 +1,98 @@
+.TH "incrontab" "5" "0.5.10" "Lukas Jelinek" "incron documentation"
+.SH "NAME"
+incrontab \- tables for driving inotify cron (incron)
+.SH "DESCRIPTION"
+An incrontab file contains instructions to the \fIincrond\fR(8) daemon of the general form: "run this command on these file events". There are two categories of tables: system tables (with root privileges) and user tables (with user privileges).
+
+System tables are (by default) located in /etc/incron.d and may have any names. Each system table exists separately inside incron and their watches never collide.
+
+Each user has their own table, and commands in any given incrontab will be executed as the user who owns the incrontab. System users (such as apache, postfix, nobody etc.) may have their own incrontab.
+
+incrontab files are read when the \fIincrond\fR(8) daemon starts and after any change (incrontab file are being hooked when incrond is running).
+
+Blank lines are ignored. The general line format is the following:
+
+<path> <mask> <command>
+
+Where \fIpath\fR is an absolute filesystem path, \fImask\fR is an event mask (in symbolic or numeric form) and \fIcommand\fR is an executable file (or a script) with its arguments. See bellow for event mask symbols. The executable file may be noted as an absolute path or only as the name itself (PATH locations are examined).
+
+Please remember that the same path may occur only once per table (otherwise only the first occurrence takes effect and an error message is emitted to the system log).
+.SH "EVENT SYMBOLS"
+These basic event mask symbols are defined:
+
+\fBIN_ACCESS\fR 		File was accessed (read) (*)
+.br 
+\fBIN_ATTRIB\fR 		Metadata changed (permissions, timestamps, extended attributes, etc.) (*)
+.br 
+\fBIN_CLOSE_WRITE\fR 	File opened for writing was closed (*)
+.br 
+\fBIN_CLOSE_NOWRITE\fR 	File not opened for writing was closed (*)
+.br 
+\fBIN_CREATE\fR 		File/directory created in watched directory (*)
+.br 
+\fBIN_DELETE\fR 		File/directory deleted from watched directory (*)
+.br 
+\fBIN_DELETE_SELF\fR 		Watched file/directory was itself deleted
+.br 
+\fBIN_MODIFY\fR 		File was modified (*)
+.br 
+\fBIN_MOVE_SELF\fR 		Watched file/directory was itself moved
+.br 
+\fBIN_MOVED_FROM\fR 		File moved out of watched directory (*)
+.br 
+\fBIN_MOVED_TO\fR 		File moved into watched directory (*)
+.br 
+\fBIN_OPEN\fR 			File was opened (*)
+
+When monitoring a directory, the events marked with an asterisk (*) above can occur for files in the directory, in which case the name field in the returned event data identifies the name of the file within the directory.
+
+The \fBIN_ALL_EVENTS\fR symbol is defined as a bit mask of all of the above events. Two additional convenience symbols are \fBIN_MOVE\fR, which is a combination of \fBIN_MOVED_FROM\fR and \fBIN_MOVED_TO\fR, and \fBIN_CLOSE\fR which combines \fBIN_CLOSE_WRITE\fR and \fBIN_CLOSE_NOWRITE\fR.
+
+The following further symbols can be specified in the mask:
+ 
+\fBIN_DONT_FOLLOW\fR 	Don't dereference pathname if it is a symbolic link
+.br 
+\fBIN_ONESHOT\fR 		Monitor pathname for only one event
+.br 
+\fBIN_ONLYDIR\fR 		Only watch pathname if it is a directory
+
+Additionaly, there is a symbol which doesn't appear in the inotify symbol set. It it \fBIN_NO_LOOP\fR. This symbol disables monitoring events until the current one is completely handled (until its child process exits).
+
+.SH "WILDCARDS"
+The following wildards may be used inside command specification:
+
+\fB$$\fR	dollar sign
+.br
+\fB$@\fR	watched filesystem path (see above)
+.br
+\fB$#\fR	event-related file name
+.br
+\fB$%\fR	event flags (textually)
+.br
+\fB$&\fR	event flags (numerically)
+
+.SH "EXAMPLE"
+These are some example rules which can be used in an incrontab file:
+
+\fB/tmp IN_ALL_EVENTS abcd $@/$# $%\fR
+
+\fB/usr/bin IN_ACCESS,IN_NO_LOOP abcd $#\fR
+
+\fB/home IN_CREATE /usr/local/bin/abcd $#\fR
+
+\fB/var/log 12 abcd $@/$#\fR
+
+The first line monitors all events on the /tmp directory. When an event occurs it runs a application called 'abcd' with the full path of the file as the first arguments and the event flags as the second one.
+
+The second line monitors accesses (readings) on the /usr/bin directory. The application 'abcd' is run as a handler and the appropriate event watch is disabled until the program finishes. The file name (without the directory path) is passed in as an argument.
+
+The third example is used for monitoring the /home directory for newly create files or directories (it practically means an event is sent when a new user is added). This event is processed by a program specified by an absolute path.
+
+And the final line shows how to use numeric event mask instead of textual one. The value 12 is exactly the same as IN_ATTRIB,IN_CLOSE_WRITE.
+
+.SH "SEE ALSO"
+incrond(8), incrontab(1), incron.conf(5)
+.SH "AUTHOR"
+Lukas Jelinek <lukas@aiken.cz> (please report bugs to http://bts.aiken.cz or <bugs@aiken.cz>).
+.SH "COPYING"
+This program is free software. It can be used, redistributed and/or modified under the terms of the GNU General Public License, version 2.
